@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>온유의 질문 칠판</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: linear-gradient(45deg, #2d4a2d, #1a3d1a);
+            min-height: 100vh;
+            padding: 20px;
+            background-image: 
+                radial-gradient(circle at 20px 20px, rgba(255,255,255,0.1) 1px, transparent 1px),
+                linear-gradient(0deg, rgba(255,255,255,0.02) 50%, transparent 50%);
+            background-size: 40px 40px, 100% 2px;
+        }
+
+        .chalkboard {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #2d5a2d, #1e4a1e);
+            border: 15px solid #8B4513;
+            border-radius: 10px;
+            box-shadow: 
+                inset 0 0 100px rgba(0,0,0,0.3),
+                0 10px 30px rgba(0,0,0,0.5);
+            position: relative;
+            min-height: 90vh;
+            padding: 40px;
+        }
+
+        .chalkboard::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 30% 20%, rgba(255,255,255,0.03) 1px, transparent 1px),
+                radial-gradient(circle at 70% 80%, rgba(255,255,255,0.02) 1px, transparent 1px);
+            pointer-events: none;
+        }
+
+        .title {
+            text-align: center;
+            color: #ffffff;
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .upload-section {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px dashed #ffffff;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #ffeb3b;
+        }
+
+        .upload-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 10px;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .upload-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .question-input {
+            width: 100%;
+            max-width: 500px;
+            padding: 15px;
+            border: 2px solid #ffffff;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+            margin-top: 15px;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .posts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .post-card {
+            background: #fff9c4;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 
+                0 5px 15px rgba(0,0,0,0.2),
+                0 0 0 3px #f4d03f;
+            transform: rotate(-1deg);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .post-card:nth-child(even) {
+            transform: rotate(1deg);
+            background: #ffeb9c;
+        }
+
+        .post-card:nth-child(3n) {
+            transform: rotate(-0.5deg);
+            background: #e8f5e8;
+        }
+
+        .post-card:hover {
+            transform: rotate(0deg) scale(1.02);
+            z-index: 10;
+        }
+
+        .post-card::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 15px;
+            background: #ff6b6b;
+            border-radius: 50% 50% 0 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .post-image {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 2px solid #ddd;
+        }
+
+        .post-question {
+            color: #2c3e50;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .post-time {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-bottom: 15px;
+        }
+
+        .comments-section {
+            border-top: 2px solid #ddd;
+            padding-top: 15px;
+            margin-top: 15px;
+        }
+
+        .comment {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-radius: 15px;
+            position: relative;
+            max-width: 80%;
+        }
+
+        .comment.onyu {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+            margin-left: 0;
+            margin-right: auto;
+        }
+
+        .comment.teacher {
+            background: #fff3e0;
+            border: 2px solid #ff9800;
+            margin-left: auto;
+            margin-right: 0;
+        }
+
+        .comment-author {
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .comment.onyu .comment-author {
+            color: #1976d2;
+        }
+
+        .comment.teacher .comment-author {
+            color: #f57c00;
+        }
+
+        .comment-text {
+            font-size: 14px;
+            line-height: 1.4;
+            color: #2c3e50;
+        }
+
+        .comment-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            align-items: flex-end;
+        }
+
+        .comment-input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 20px;
+            font-size: 14px;
+            resize: none;
+            height: 40px;
+        }
+
+        .author-select {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 15px;
+            font-size: 12px;
+            background: white;
+        }
+
+        .comment-submit {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.3s ease;
+        }
+
+        .comment-submit:hover {
+            background: #45a049;
+        }
+
+        .loading {
+            text-align: center;
+            color: #ffffff;
+            font-size: 18px;
+            margin: 40px 0;
+        }
+
+        .upload-label {
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .file-info {
+            color: #ffffff;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .chalkboard {
+                margin: 10px;
+                padding: 20px;
+                border-width: 10px;
+            }
+
+            .title {
+                font-size: 2em;
+            }
+
+            .posts-container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .upload-section {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chalkboard">
+        <h1 class="title">📚 온유의 질문 칠판 📝</h1>
+        
+        <div class="upload-section">
+            <label class="upload-label">사진과 질문을 올려보세요!</label>
+            <input type="file" id="fileInput" accept="image/*" multiple>
+            <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                📷 사진 선택하기
+            </button>
+            <div class="file-info" id="fileInfo"></div>
+            <textarea class="question-input" id="questionInput" placeholder="질문을 여기에 적어주세요..."></textarea>
+            <br>
+            <button class="upload-btn" onclick="uploadPost()" id="uploadBtn">
+                ✏️ 질문 올리기
+            </button>
+        </div>
+
+        <div class="posts-container" id="postsContainer">
+            <div class="loading">칠판을 준비하고 있어요... 🎓</div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, onSnapshot, limit, deleteDoc, doc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+
+        // Firebase 설정 (실제 프로젝트 설정으로 교체 필요)
+        const firebaseConfig = {
+            apiKey: "your-api-key",
+            authDomain: "your-project.firebaseapp.com", 
+            projectId: "your-project-id",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "your-app-id"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+
+        let selectedFiles = [];
+
+        // 전역 함수들
+        window.uploadPost = uploadPost;
+        window.addComment = addComment;
+
+        // 파일 선택 이벤트
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            selectedFiles = Array.from(e.target.files);
+            const fileInfo = document.getElementById('fileInfo');
+            if (selectedFiles.length > 0) {
+                fileInfo.textContent = `${selectedFiles.length}개의 사진이 선택되었습니다.`;
+            } else {
+                fileInfo.textContent = '';
+            }
+        });
+
+        // 게시글 업로드
+        async function uploadPost() {
+            const questionText = document.getElementById('questionInput').value.trim();
+            
+            if (selectedFiles.length === 0) {
+                alert('사진을 선택해주세요!');
+                return;
+            }
+            
+            if (!questionText) {
+                alert('질문을 작성해주세요!');
+                return;
+            }
+
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '업로드 중...';
+
+            try {
+                // 기존 게시글 수 확인
+                const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
+                const postsSnapshot = await getDocs(postsQuery);
+                const posts = postsSnapshot.docs;
+
+                // 5개 초과시 오래된 게시글 삭제
+                if (posts.length >= 5) {
+                    const oldPostsToDelete = posts.slice(5 - 1); // 새 게시글을 위해 하나 더 삭제
+                    for (const postDoc of oldPostsToDelete) {
+                        const postData = postDoc.data();
+                        // 이미지 삭제
+                        if (postData.imageUrl) {
+                            try {
+                                const imageRef = ref(storage, postData.imageUrl);
+                                await deleteObject(imageRef);
+                            } catch (error) {
+                                console.log('이미지 삭제 실패:', error);
+                            }
+                        }
+                        // 문서 삭제
+                        await deleteDoc(doc(db, 'posts', postDoc.id));
+                    }
+                }
+
+                // 이미지 업로드
+                const file = selectedFiles[0]; // 첫 번째 파일만 사용
+                const fileName = `posts/${Date.now()}_${file.name}`;
+                const storageRef = ref(storage, fileName);
+                await uploadBytes(storageRef, file);
+                const imageUrl = await getDownloadURL(storageRef);
+
+                // 게시글 저장
+                await addDoc(collection(db, 'posts'), {
+                    question: questionText,
+                    imageUrl: imageUrl,
+                    timestamp: new Date(),
+                    comments: []
+                });
+
+                // 입력 필드 초기화
+                document.getElementById('questionInput').value = '';
+                document.getElementById('fileInput').value = '';
+                document.getElementById('fileInfo').textContent = '';
+                selectedFiles = [];
+
+                alert('질문이 칠판에 올려졌어요! 📝');
+
+            } catch (error) {
+                console.error('업로드 실패:', error);
+                alert('업로드에 실패했습니다. 다시 시도해주세요.');
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = '✏️ 질문 올리기';
+            }
+        }
+
+        // 댓글 추가
+        async function addComment(postId) {
+            const commentInput = document.querySelector(`#comment-${postId}`);
+            const authorSelect = document.querySelector(`#author-${postId}`);
+            
+            const commentText = commentInput.value.trim();
+            const author = authorSelect.value;
+
+            if (!commentText) {
+                alert('댓글을 작성해주세요!');
+                return;
+            }
+
+            try {
+                const postRef = doc(db, 'posts', postId);
+                const postSnapshot = await getDocs(query(collection(db, 'posts')));
+                const postDoc = postSnapshot.docs.find(doc => doc.id === postId);
+                
+                if (postDoc) {
+                    const postData = postDoc.data();
+                    const comments = postData.comments || [];
+                    
+                    comments.push({
+                        text: commentText,
+                        author: author,
+                        timestamp: new Date()
+                    });
+
+                    await addDoc(collection(db, 'posts'), {
+                        ...postData,
+                        comments: comments
+                    });
+
+                    // 기존 문서 삭제
+                    await deleteDoc(postRef);
+
+                    commentInput.value = '';
+                }
+            } catch (error) {
+                console.error('댓글 추가 실패:', error);
+                alert('댓글 추가에 실패했습니다.');
+            }
+        }
+
+        // 게시글 렌더링
+        function renderPosts(posts) {
+            const container = document.getElementById('postsContainer');
+            
+            if (posts.length === 0) {
+                container.innerHTML = '<div class="loading">아직 질문이 없어요. 첫 번째 질문을 올려보세요! 🌟</div>';
+                return;
+            }
+
+            container.innerHTML = posts.map(post => {
+                const data = post.data();
+                const comments = data.comments || [];
+                
+                return `
+                    <div class="post-card">
+                        <img src="${data.imageUrl}" alt="질문 이미지" class="post-image">
+                        <div class="post-question">${data.question}</div>
+                        <div class="post-time">${new Date(data.timestamp.toDate()).toLocaleString('ko-KR')}</div>
+                        
+                        <div class="comments-section">
+                            ${comments.map(comment => `
+                                <div class="comment ${comment.author === '온유' ? 'onyu' : 'teacher'}">
+                                    <div class="comment-author">${comment.author}</div>
+                                    <div class="comment-text">${comment.text}</div>
+                                </div>
+                            `).join('')}
+                            
+                            <div class="comment-form">
+                                <textarea id="comment-${post.id}" class="comment-input" placeholder="답글을 남겨주세요..."></textarea>
+                                <select id="author-${post.id}" class="author-select">
+                                    <option value="온유">온유</option>
+                                    <option value="두현 쌤">두현 쌤</option>
+                                </select>
+                                <button class="comment-submit" onclick="addComment('${post.id}')">답글</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 실시간 데이터 감시
+        const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(5));
+        onSnapshot(postsQuery, (snapshot) => {
+            renderPosts(snapshot.docs);
+        });
+
+    </script>
+</body>
+</html>

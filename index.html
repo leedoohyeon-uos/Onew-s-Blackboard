@@ -60,6 +60,32 @@
             position: relative;
         }
 
+        .connection-status {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+
+        .connection-status.online {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            border: 2px solid #4CAF50;
+        }
+
+        .connection-status.offline {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ff9800;
+            border: 2px solid #ff9800;
+        }
+
+        .connection-status.error {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+            border: 2px solid #f44336;
+        }
+
         .upload-section {
             background: rgba(255, 255, 255, 0.1);
             border: 2px dashed #ffffff;
@@ -93,6 +119,13 @@
             background: #45a049;
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .upload-btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .question-input {
@@ -157,11 +190,12 @@
 
         .post-image {
             width: 100%;
-            max-height: 200px;
+            height: 200px;
             object-fit: cover;
             border-radius: 8px;
             margin-bottom: 15px;
             border: 2px solid #ddd;
+            aspect-ratio: 1;
         }
 
         .post-question {
@@ -317,6 +351,10 @@
     <div class="chalkboard">
         <h1 class="title">📚 온유의 질문 칠판 📝</h1>
         
+        <div id="connectionStatus" class="connection-status offline">
+            🔄 연결 중...
+        </div>
+        
         <div class="upload-section">
             <label class="upload-label">사진과 질문을 올려보세요!</label>
             <input type="file" id="fileInput" accept="image/*" multiple>
@@ -338,22 +376,78 @@
 
     <!-- Firebase SDK -->
     <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getFirestore, collection, addDoc, getDocs, query, orderBy, onSnapshot, limit, deleteDoc, doc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, onSnapshot, limit, deleteDoc, doc, updateDoc, enableNetwork, disableNetwork } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 
-        // Firebase 설정 (실제 프로젝트 설정으로 교체 필요)
+        // Firebase 설정
         const firebaseConfig = {
-          apiKey: "AIzaSyBWSRJWTyLKpIM2EMPK01sFpEVPr6LuS1E",
-          authDomain: "onew-s-blackboard.firebaseapp.com",
-          projectId: "onew-s-blackboard",
-          storageBucket: "onew-s-blackboard.firebasestorage.app",
-          messagingSenderId: "290326534575",
-          appId: "1:290326534575:web:4b743b3ede82fce966f75a",
-          measurementId: "G-9T0LC4Y3WK"
+            apiKey: "AIzaSyBWSRJWTyLKpIM2EMPK01sFpEVPr6LuS1E",
+            authDomain: "onew-s-blackboard.firebaseapp.com",
+            projectId: "onew-s-blackboard",
+            storageBucket: "onew-s-blackboard.firebasestorage.app",
+            messagingSenderId: "290326534575",
+            appId: "1:290326534575:web:4b743b3ede82fce966f75a",
+            measurementId: "G-9T0LC4Y3WK"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        let app, db;
+        let isOnline = false;
+        let posts = [];
+
+        // Firebase 초기화 및 연결 관리
+        async function initFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                
+                // 연결 상태 모니터링
+                const statusElement = document.getElementById('connectionStatus');
+                
+                // 온라인 상태 확인
+                window.addEventListener('online', () => {
+                    updateConnectionStatus(true);
+                });
+                
+                window.addEventListener('offline', () => {
+                    updateConnectionStatus(false);
+                });
+
+                // Firestore 연결 테스트
+                await testConnection();
+                
+            } catch (error) {
+                console.error('Firebase 초기화 실패:', error);
+                updateConnectionStatus(false, '연결 실패');
+            }
+        }
+
+        // 연결 테스트
+        async function testConnection() {
+            try {
+                const testQuery = query(collection(db, 'posts'), limit(1));
+                await getDocs(testQuery);
+                updateConnectionStatus(true);
+                loadPosts();
+            } catch (error) {
+                console.error('연결 테스트 실패:', error);
+                updateConnectionStatus(false, error.message);
+                loadOfflinePosts();
+            }
+        }
+
+        // 연결 상태 업데이트
+        function updateConnectionStatus(online, message = '') {
+            const statusElement = document.getElementById('connectionStatus');
+            isOnline = online;
+            
+            if (online) {
+                statusElement.className = 'connection-status online';
+                statusElement.innerHTML = '🟢 온라인 - 실시간 동기화 중';
+            } else {
+                statusElement.className = 'connection-status offline';
+                statusElement.innerHTML = `🟡 오프라인 모드${message ? ` - ${message}` : ''}`;
+            }
+        }
 
         // 이미지를 Base64로 변환하는 함수
         function convertToBase64(file) {
@@ -365,8 +459,8 @@
             });
         }
 
-        // 이미지 크기 조절 함수 (용량 절약)
-        function resizeImage(file, maxWidth = 800, quality = 0.8) {
+        // 이미지 크기 조절 함수
+        function resizeImage(file, maxWidth = 800, quality = 0.7) {
             return new Promise((resolve) => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
@@ -402,6 +496,40 @@
             }
         });
 
+        // 로컬 스토리지에 게시글 저장
+        function saveToLocalStorage(postData) {
+            try {
+                const localPosts = JSON.parse(localStorage.getItem('onyuPosts') || '[]');
+                localPosts.unshift(postData);
+                
+                // 최대 5개까지만 저장
+                if (localPosts.length > 5) {
+                    localPosts.splice(5);
+                }
+                
+                localStorage.setItem('onyuPosts', JSON.stringify(localPosts));
+                return true;
+            } catch (error) {
+                console.error('로컬 저장 실패:', error);
+                return false;
+            }
+        }
+
+        // 로컬 스토리지에서 게시글 로드
+        function loadOfflinePosts() {
+            try {
+                const localPosts = JSON.parse(localStorage.getItem('onyuPosts') || '[]');
+                posts = localPosts.map(post => ({
+                    data: () => post,
+                    id: post.id || 'local_' + Date.now()
+                }));
+                renderPosts(posts);
+            } catch (error) {
+                console.error('로컬 데이터 로드 실패:', error);
+                renderPosts([]);
+            }
+        }
+
         // 게시글 업로드
         async function uploadPost() {
             const questionText = document.getElementById('questionInput').value.trim();
@@ -421,39 +549,59 @@
             uploadBtn.textContent = '업로드 중...';
 
             try {
-                // 기존 게시글 수 확인
-                const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
-                const postsSnapshot = await getDocs(postsQuery);
-                const posts = postsSnapshot.docs;
-
-                // 5개 초과시 오래된 게시글 삭제
-                if (posts.length >= 5) {
-                    const oldPostsToDelete = posts.slice(5 - 1);
-                    for (const postDoc of oldPostsToDelete) {
-                        await deleteDoc(doc(db, 'posts', postDoc.id));
-                    }
-                }
-
-                // 이미지 리사이즈 및 Base64 변환
+                // 이미지 처리
                 const file = selectedFiles[0];
                 const resizedFile = await resizeImage(file);
                 const base64Image = await convertToBase64(resizedFile);
 
-                // 게시글 저장 (이미지를 Base64로 저장)
-                await addDoc(collection(db, 'posts'), {
+                const postData = {
                     question: questionText,
                     imageData: base64Image,
                     timestamp: new Date(),
-                    comments: []
-                });
+                    comments: [],
+                    id: 'post_' + Date.now()
+                };
+
+                if (isOnline) {
+                    // 온라인일 때 Firebase에 저장
+                    try {
+                        // 기존 게시글 수 확인 및 정리
+                        const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
+                        const postsSnapshot = await getDocs(postsQuery);
+                        const existingPosts = postsSnapshot.docs;
+
+                        if (existingPosts.length >= 5) {
+                            const oldPostsToDelete = existingPosts.slice(4);
+                            for (const postDoc of oldPostsToDelete) {
+                                await deleteDoc(doc(db, 'posts', postDoc.id));
+                            }
+                        }
+
+                        await addDoc(collection(db, 'posts'), postData);
+                        alert('질문이 칠판에 올려졌어요! 📝');
+                    } catch (fbError) {
+                        console.error('Firebase 저장 실패:', fbError);
+                        // Firebase 실패 시 로컬에 저장
+                        saveToLocalStorage(postData);
+                        alert('오프라인으로 저장되었습니다. 연결 복구 시 자동 동기화됩니다.');
+                        updateConnectionStatus(false, 'Firebase 연결 오류');
+                    }
+                } else {
+                    // 오프라인일 때 로컬에 저장
+                    saveToLocalStorage(postData);
+                    posts.unshift({
+                        data: () => postData,
+                        id: postData.id
+                    });
+                    renderPosts(posts);
+                    alert('오프라인으로 저장되었습니다. 연결 복구 시 자동 동기화됩니다.');
+                }
 
                 // 입력 필드 초기화
                 document.getElementById('questionInput').value = '';
                 document.getElementById('fileInput').value = '';
                 document.getElementById('fileInfo').textContent = '';
                 selectedFiles = [];
-
-                alert('질문이 칠판에 올려졌어요! 📝');
 
             } catch (error) {
                 console.error('업로드 실패:', error);
@@ -477,30 +625,48 @@
                 return;
             }
 
+            const newComment = {
+                text: commentText,
+                author: author,
+                timestamp: new Date()
+            };
+
             try {
-                const postRef = doc(db, 'posts', postId);
-                const postSnapshot = await getDocs(query(collection(db, 'posts')));
-                const postDoc = postSnapshot.docs.find(doc => doc.id === postId);
-                
-                if (postDoc) {
-                    const postData = postDoc.data();
-                    const comments = postData.comments || [];
+                if (isOnline) {
+                    // Firebase에서 업데이트
+                    const postRef = doc(db, 'posts', postId);
+                    const postsSnapshot = await getDocs(query(collection(db, 'posts')));
+                    const postDoc = postsSnapshot.docs.find(doc => doc.id === postId);
                     
-                    comments.push({
-                        text: commentText,
-                        author: author,
-                        timestamp: new Date()
-                    });
+                    if (postDoc) {
+                        const postData = postDoc.data();
+                        const comments = postData.comments || [];
+                        comments.push(newComment);
 
-                    await addDoc(collection(db, 'posts'), {
-                        ...postData,
-                        comments: comments
-                    });
-
-                    // 기존 문서 삭제
-                    await deleteDoc(postRef);
-
-                    commentInput.value = '';
+                        await updateDoc(postRef, { comments: comments });
+                        commentInput.value = '';
+                    }
+                } else {
+                    // 오프라인 모드에서 로컬 업데이트
+                    const postIndex = posts.findIndex(post => post.id === postId);
+                    if (postIndex !== -1) {
+                        const postData = posts[postIndex].data();
+                        const comments = postData.comments || [];
+                        comments.push(newComment);
+                        postData.comments = comments;
+                        
+                        // 로컬 스토리지 업데이트
+                        const localPosts = JSON.parse(localStorage.getItem('onyuPosts') || '[]');
+                        const localPostIndex = localPosts.findIndex(post => post.id === postId);
+                        if (localPostIndex !== -1) {
+                            localPosts[localPostIndex].comments = comments;
+                            localStorage.setItem('onyuPosts', JSON.stringify(localPosts));
+                        }
+                        
+                        renderPosts(posts);
+                        commentInput.value = '';
+                        alert('댓글이 오프라인으로 저장되었습니다.');
+                    }
                 }
             } catch (error) {
                 console.error('댓글 추가 실패:', error);
@@ -509,31 +675,35 @@
         }
 
         // 게시글 렌더링
-        function renderPosts(posts) {
+        function renderPosts(postsArray) {
             const container = document.getElementById('postsContainer');
             
-            if (posts.length === 0) {
+            if (postsArray.length === 0) {
                 container.innerHTML = '<div class="loading">아직 질문이 없어요. 첫 번째 질문을 올려보세요! 🌟</div>';
                 return;
             }
 
-            container.innerHTML = posts.map(post => {
+            container.innerHTML = postsArray.map(post => {
                 const data = post.data();
                 const comments = data.comments || [];
+                const timestamp = data.timestamp?.toDate ? data.timestamp.toDate() : new Date(data.timestamp);
                 
                 return `
                     <div class="post-card">
                         <img src="${data.imageData}" alt="질문 이미지" class="post-image">
                         <div class="post-question">${data.question}</div>
-                        <div class="post-time">${new Date(data.timestamp.toDate()).toLocaleString('ko-KR')}</div>
+                        <div class="post-time">${timestamp.toLocaleString('ko-KR')}</div>
                         
                         <div class="comments-section">
-                            ${comments.map(comment => `
-                                <div class="comment ${comment.author === '온유' ? 'onyu' : 'teacher'}">
-                                    <div class="comment-author">${comment.author}</div>
-                                    <div class="comment-text">${comment.text}</div>
-                                </div>
-                            `).join('')}
+                            ${comments.map(comment => {
+                                const commentTime = comment.timestamp?.toDate ? comment.timestamp.toDate() : new Date(comment.timestamp);
+                                return `
+                                    <div class="comment ${comment.author === '온유' ? 'onyu' : 'teacher'}">
+                                        <div class="comment-author">${comment.author}</div>
+                                        <div class="comment-text">${comment.text}</div>
+                                    </div>
+                                `;
+                            }).join('')}
                             
                             <div class="comment-form">
                                 <textarea id="comment-${post.id}" class="comment-input" placeholder="답글을 남겨주세요..."></textarea>
@@ -549,10 +719,40 @@
             }).join('');
         }
 
-        // 실시간 데이터 감시
-        const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(5));
-        onSnapshot(postsQuery, (snapshot) => {
-            renderPosts(snapshot.docs);
+        // Firebase에서 게시글 로드
+        function loadPosts() {
+            try {
+                const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(5));
+                onSnapshot(postsQuery, (snapshot) => {
+                    posts = snapshot.docs;
+                    renderPosts(posts);
+                }, (error) => {
+                    console.error('실시간 업데이트 실패:', error);
+                    updateConnectionStatus(false, '실시간 업데이트 중단');
+                    loadOfflinePosts();
+                });
+            } catch (error) {
+                console.error('게시글 로드 실패:', error);
+                loadOfflinePosts();
+            }
+        }
+
+        // 재연결 시도
+        async function retryConnection() {
+            if (!isOnline) {
+                setTimeout(async () => {
+                    await testConnection();
+                    if (!isOnline) {
+                        retryConnection();
+                    }
+                }, 10000); // 10초마다 재연결 시도
+            }
+        }
+
+        // 초기화
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initFirebase();
+            retryConnection();
         });
 
     </script>
